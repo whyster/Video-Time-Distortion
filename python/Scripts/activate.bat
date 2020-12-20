@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set "VIRTUAL_ENV=D:\Unique3DCrossectionsFromAVideo\python"
+set "VIRTUAL_ENV=D:\PyCharm_Projects\Unique3DCrossectionsFromAVideo\python"
 
 if not defined PROMPT (
     set "PROMPT=$P$G"

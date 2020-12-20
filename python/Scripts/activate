@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="D:\Unique3DCrossectionsFromAVideo\python"
+VIRTUAL_ENV="D:\PyCharm_Projects\Unique3DCrossectionsFromAVideo\python"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

@@ -27,7 +27,7 @@ function global:deactivate ([switch]$NonDestructive) {
 
 deactivate -nondestructive
 
-$env:VIRTUAL_ENV="D:\Unique3DCrossectionsFromAVideo\python"
+$env:VIRTUAL_ENV="D:\PyCharm_Projects\Unique3DCrossectionsFromAVideo\python"
 
 if (! $env:VIRTUAL_ENV_DISABLE_PROMPT) {
     # Set the prompt to include the env name
