@@ -1,6 +1,6 @@
 import numpy as np
 import cv2, argparse, parser
-
+from math import *
 
 WRITETOFILE='file'
 RETURNVIDEO='object'
@@ -29,24 +29,37 @@ def process_video_name(FileName: str, Function):
     #             yield
     # Function: x+y
     cv2.namedWindow('In progress video frame')
-    cv2.namedWindow('Source Video Frame')
-    #TODO: Find a way to make this faster. Current efficiency is 0
-    for FramePos in range(1, FrameCount-1):
+    #cv2.namedWindow('Source Video Frame')
+    #TODO: Find a way to make this faster. Current efficiency is 1 however it can now be multi-processed or threaded
+    for FramePos in range(FrameCount):
         OutFrame = np.empty((int(FrameHeight), int(FrameWidth), 3), np.dtype('uint8'))
-        for x in range(FrameWidth):
-            for y in range(FrameHeight):
+        for y in range(FrameHeight):
+            # IDEA: Cache a line of time frames to speed up processing (Have a call for every x not every y)
+            print('Calculating TemporalLine')
+            TemporalLine = np.empty((int(FrameCount), int(FrameWidth), 3), np.dtype('uint8'))
+            Video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            for Pos in range(FrameCount):
+                ret, Frame = Video.read()
+                if ret:
+                    TemporalLine[Pos] = Frame[y]
+            for x in range(FrameWidth):
                 # TODO: Test if eval can be abused with Function
                 FResult = eval(Function)
-                print(f'Reading frame {((FramePos+FResult)%(FrameCount-1))}')
-                Video.set(cv2.CAP_PROP_POS_FRAMES, ((FramePos+FResult)%(FrameCount-1))-1)
-                ret, Frame = Video.read()
-                cv2.imshow('Source Video Frame', Frame)
+                print(f'Reading frame {int((FramePos+FResult)%(FrameCount))}')
+                #Video.set(cv2.CAP_PROP_POS_FRAMES, ((FramePos+FResult)%(FrameCount)))
+                #ret, Frame = Video.read()
+
+                OutFrame[y][x] = TemporalLine[int((FramePos+FResult)%(FrameCount))][x]
+                #cv2.imshow('Source Video Frame', Frame)
+                print(f'{FramePos}({x},{y}) = {FResult}')
+                print(f'{TemporalLine[int((FramePos+FResult)%(FrameCount))][x]}')
+                cv2.imshow('In progress video frame', OutFrame)
+                # if(ret):
+                #     print(f'{FramePos}({x},{y}) = {FResult}')
+                #     print(f'{Frame[y][x]}')
+                #     OutFrame[y][x] = Frame[y][x]
+                #     cv2.imshow('In progress video frame', OutFrame)
                 cv2.waitKey(1)
-                if(ret):
-                    print(f'{FramePos}({x},{y}) = {FResult}')
-                    print(f'{Frame[y][x]}')
-                    OutFrame[y][x] = Frame[y][x]
-                    cv2.imshow('In progress video frame', OutFrame)
         yield OutFrame
     Video.release()
 
