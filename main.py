@@ -1,13 +1,14 @@
 import numpy as np
-import cv2, argparse, parser
+import cv2, argparse, parser, multiprocessing
+# from multiprocessing import Process
 from math import *
 
 WRITETOFILE='file'
 RETURNVIDEO='object'
 
+# TODO: Refactor threading into saying processing
 
-
-def process_video_name(FileName: str, Function):
+def process_video_name(FileName: str, Function, ThreadCount: int):
     print(f'Attempting to read {FileName}')
     Video = cv2.VideoCapture(FileName)
     print('File read')
@@ -15,25 +16,30 @@ def process_video_name(FileName: str, Function):
     FrameCount = int(Video.get(cv2.CAP_PROP_FRAME_COUNT))
     FrameWidth = int(Video.get(cv2.CAP_PROP_FRAME_WIDTH))
     FrameHeight = int(Video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
+    Video.release()
     print(FrameCount, FrameWidth, FrameHeight)
-    #VideoBuffer = np.empty((FrameCount, FrameHeight, FrameWidth, 3), np.dtype('uint8'))
-    #print(VideoBuffer.shape)
-    ret = True
-    #cv2.namedWindow('Video frames')
-    #print('Iterating through frames and adding to 3d matrix')
-    # for Frame in FrameCount:
-    #     for x in FrameWidth:
-    #         for y in FrameHeight:
-    #             Video.set()
-    #             yield
-    # Function: x+y
-    cv2.namedWindow('In progress video frame')
-    #cv2.namedWindow('Source Video Frame')
-    #TODO: Find a way to make this faster. Current efficiency is 1 however it can now be multi-processed or threaded
+
+    #TODO: Find a way to make this faster. Current efficiency is 2 It has multi processing but is still fairly cpu intensive
+    # The next possible move could be to have this run on a gpu
     for FramePos in range(FrameCount):
         OutFrame = np.empty((int(FrameHeight), int(FrameWidth), 3), np.dtype('uint8'))
-        for y in range(FrameHeight):
+
+
+        with multiprocessing.Pool(ThreadCount) as p:
+            p.map(process_frame, [((int(FrameHeight/ThreadCount) * i, int(FrameHeight/ThreadCount) * (i+1)), FrameHeight, FrameWidth, Function, FramePos, FrameCount, FileName, OutFrame, f'temp{i}.npy') for i in range(0, ThreadCount)])
+        for i in range(ThreadCount):
+            OutFrame = np.bitwise_xor(OutFrame, np.load(f'temp{i}.npy'))
+            #TODO: Clean up after process
+        yield OutFrame
+
+
+
+def process_frame(specialTuple):
+    yBounds, FrameHeight, FrameWidth, Function, FramePos, FrameCount, VideoName, OutFrame, TempOut = specialTuple
+    yStart, yEnd = yBounds
+    print(yBounds)
+    Video = cv2.VideoCapture(VideoName)
+    for y in range(yStart, yEnd):
             # IDEA: Cache a line of time frames to speed up processing (Have a call for every x not every y)
             print('Calculating TemporalLine')
             TemporalLine = np.empty((int(FrameCount), int(FrameWidth), 3), np.dtype('uint8'))
@@ -46,24 +52,16 @@ def process_video_name(FileName: str, Function):
                 # TODO: Test if eval can be abused with Function
                 FResult = eval(Function)
                 print(f'Reading frame {int((FramePos+FResult)%(FrameCount))}')
-                #Video.set(cv2.CAP_PROP_POS_FRAMES, ((FramePos+FResult)%(FrameCount)))
-                #ret, Frame = Video.read()
 
+                # Extract from temporalline based on time function
                 OutFrame[y][x] = TemporalLine[int((FramePos+FResult)%(FrameCount))][x]
-                #cv2.imshow('Source Video Frame', Frame)
+
                 print(f'{FramePos}({x},{y}) = {FResult}')
                 print(f'{TemporalLine[int((FramePos+FResult)%(FrameCount))][x]}')
                 cv2.imshow('In progress video frame', OutFrame)
-                # if(ret):
-                #     print(f'{FramePos}({x},{y}) = {FResult}')
-                #     print(f'{Frame[y][x]}')
-                #     OutFrame[y][x] = Frame[y][x]
-                #     cv2.imshow('In progress video frame', OutFrame)
                 cv2.waitKey(1)
-        yield OutFrame
     Video.release()
-
-
+    np.save(TempOut, OutFrame)
 
 # def process_video_object(VideoObject: cv2.VideoCapture):
 #     return
@@ -77,18 +75,21 @@ def parseArgs():
     parser = argparse.ArgumentParser(description='Process video files by a f(x,y) to alter playback')
     parser.add_argument('inputfile', type=str, help='The file you would like to submit for processing')
     parser.add_argument('-f', '--function', type=str, default='0', help='A function expression that maps x, y into a value to distort t. f(x, y) = x+y would be written as x+y')
-    parser.add_argument('-o', '--output', type=str, default=None,help='The output file location')
+    parser.add_argument('-o', '--output', type=str, default=None, help='The output file location')
+    parser.add_argument('-p', '--process', type=int, default=1, help='The amount of processes to use when processing each frame')
     return parser.parse_args()
 
 
-def main(inputfile, function, output):
+def main(inputfile, function, output, threads):
     # Parse the function: str into a mathematical statement
-    function = parser.expr(function).compile()
-    for frame in process_video_name(inputfile, function):
+    # function = parser.expr(function).compile()
+    for frame in process_video_name(inputfile, function, threads):
         cv2.namedWindow('Finished Video frames')
         cv2.imshow('Finished Video Frames', frame)
-
+        cv2.waitKey(1)
+        #TODO: have the frames be used
+        np.save('test', frame)
 
 if __name__ == '__main__':
     args = parseArgs()
-    main(args.inputfile, args.function, args.output)
+    main(args.inputfile, args.function, args.output, args.process)
