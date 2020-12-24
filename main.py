@@ -1,6 +1,6 @@
 import numpy as np
 import cv2, argparse, parser, multiprocessing
-# from multiprocessing import Process
+from UMatFileVideoStream import UMatFileVideoStream
 from math import *
 
 WRITETOFILE='file'
@@ -32,35 +32,55 @@ def process_video_name(FileName: str, Function, ThreadCount: int):
             #TODO: Clean up after process
         yield OutFrame
 
+def test_proc(FrameHeight, FrameWidth, FrameCount, FramePos, Function, TemporalLine, x, y):
+    FResult = eval(Function)
+    #print(x)
+    # print(f'Reading frame {int((FramePos+FResult)%(FrameCount))}')
+    # print(f'({x}, {y})')
+    # print(TemporalLine[int((FramePos+FResult)%(FrameCount))][x])
+    return TemporalLine[int((FramePos+FResult)%(FrameCount))][x]
 
 
 def process_frame(specialTuple):
     yBounds, FrameHeight, FrameWidth, Function, FramePos, FrameCount, VideoName, OutFrame, TempOut = specialTuple
     yStart, yEnd = yBounds
     print(yBounds)
-    Video = cv2.VideoCapture(VideoName)
+    # Video = cv2.VideoCapture(VideoName)
+    # Video = UMatFileVideoStream(VideoName, 128).start()
     for y in range(yStart, yEnd):
             # IDEA: Cache a line of time frames to speed up processing (Have a call for every x not every y)
             print('Calculating TemporalLine')
             TemporalLine = np.empty((int(FrameCount), int(FrameWidth), 3), np.dtype('uint8'))
-            Video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            # Video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            Video = UMatFileVideoStream(VideoName, 128).start()
+            rgb= cv2.UMat(FrameHeight, FrameWidth, cv2.CV_8UC3)
             for Pos in range(FrameCount):
-                ret, Frame = Video.read()
-                if ret:
+                Frame = Video.read()
+                # cv2.cvtColor(Video.read(), cv2.COLOR_BGR2RGB, Frame, 0)
+                Frame = cv2.UMat.get(Frame)
+                if Frame.any():
                     TemporalLine[Pos] = Frame[y]
-            for x in range(FrameWidth):
+            # for x in range(FrameWidth):
                 # TODO: Test if eval can be abused with Function
-                FResult = eval(Function)
-                print(f'Reading frame {int((FramePos+FResult)%(FrameCount))}')
+            # FResult = eval(Function)
+            # print(f'Reading frame {int((FramePos+FResult)%(FrameCount))}')
 
-                # Extract from temporalline based on time function
-                OutFrame[y][x] = TemporalLine[int((FramePos+FResult)%(FrameCount))][x]
+            # Extract from temporalline based on time function
+            print(OutFrame.shape)
+            testWrapper = lambda x: test_proc(FrameHeight, FrameWidth, FrameCount, FramePos, Function, TemporalLine, x, y)
+            test = np.vectorize(testWrapper, signature='()->(n)')
+            testFrame  = test(np.arange(FrameWidth))
+            # testFrame = np.fromiter(map(list, testFrame), dtype=np.dtype('uint8'))
+            # testFrame = list(map(list, testFrame))
+            # testFrame = np.array(testFrame)
+            # print(testFrame)
+            OutFrame[y] = testFrame
 
-                print(f'{FramePos}({x},{y}) = {FResult}')
-                print(f'{TemporalLine[int((FramePos+FResult)%(FrameCount))][x]}')
-                cv2.imshow('In progress video frame', OutFrame)
-                cv2.waitKey(1)
-    Video.release()
+            # print(f'{FramePos}({x},{y}) = {FResult}')
+            # print(f'{TemporalLine[int((FramePos+FResult)%(FrameCount))][x]}')
+            cv2.imshow('In progress video frame', OutFrame)
+            cv2.waitKey(1)
+    # Video.release()
     np.save(TempOut, OutFrame)
 
 # def process_video_object(VideoObject: cv2.VideoCapture):
